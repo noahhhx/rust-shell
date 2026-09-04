@@ -1,5 +1,7 @@
 #[allow(unused_imports)]
 use std::io::{self, Write};
+use std::iter::once;
+use std::process::exit;
 
 fn main() {
     loop {
@@ -22,5 +24,24 @@ fn run() {
 }
 
 fn handle_command(input: &str) {
-    println!("{}: command not found", input);
+    let (command, args) = match input.split_once(' ') {
+        None => {
+            (input, "")
+        }
+        Some((first, rest)) => {
+            (first, rest)
+        }
+    };
+
+    match command {
+        "exit" => {
+            exit(0);
+        }
+        "echo" => {
+            println!("{args}")
+        }
+        _ => {
+            println!("{}: command not found", input);
+        }
+    }
 }
