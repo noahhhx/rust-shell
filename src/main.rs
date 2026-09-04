@@ -9,11 +9,12 @@ fn main() {
     io::stdin()
         .read_line(&mut input)
         .expect("Wuh oh!");
+    let input = input.trim();
 
     handle_command(input);
     io::stdout().flush().unwrap();
 }
 
-fn handle_command(input: String) {
-    println!("{input}: command not found");
+fn handle_command(input: &str) {
+    println!("{}: command not found", input);
 }
