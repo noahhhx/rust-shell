@@ -1,7 +1,7 @@
-#[allow(unused_imports)]
+mod commands;
+
 use std::io::{self, Write};
-use std::iter::once;
-use std::process::exit;
+use crate::commands::command::Command;
 
 fn main() {
     loop {
@@ -14,34 +14,11 @@ fn run() {
     io::stdout().flush().unwrap();
 
     let mut input = String::new();
-    io::stdin()
-        .read_line(&mut input)
-        .expect("Wuh oh!");
+    io::stdin().read_line(&mut input).expect("Wuh oh!");
     let input = input.trim();
 
-    handle_command(input);
+    Command::execute(
+        &Command::from_input(input)
+    );
     io::stdout().flush().unwrap();
-}
-
-fn handle_command(input: &str) {
-    let (command, args) = match input.split_once(' ') {
-        None => {
-            (input, "")
-        }
-        Some((first, rest)) => {
-            (first, rest)
-        }
-    };
-
-    match command {
-        "exit" => {
-            exit(0);
-        }
-        "echo" => {
-            println!("{args}")
-        }
-        _ => {
-            println!("{}: command not found", input);
-        }
-    }
 }

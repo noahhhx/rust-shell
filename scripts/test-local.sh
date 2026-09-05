@@ -19,6 +19,11 @@ if [ ! -x "$TESTER_BIN" ]; then
     exit 1
 fi
 
+# The tester builds asset paths (e.g. built_executables/) from TESTER_DIR;
+# without it, setup steps like `cp built_executables/... <dir>` fail.
+: "${SHELL_TESTER_DIR:=$(cd -- "$(dirname -- "$TESTER_BIN")/.." && pwd)}"
+export TESTER_DIR="$SHELL_TESTER_DIR"
+
 case $MAX in
     ''|*[!0-9]*) usage ;;
 esac
