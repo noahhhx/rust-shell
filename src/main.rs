@@ -1,7 +1,7 @@
 mod commands;
 
-use std::io::{self, Write};
 use crate::commands::command::Command;
+use std::io::{self, Write};
 
 fn main() {
     loop {
@@ -17,8 +17,6 @@ fn run() {
     io::stdin().read_line(&mut input).expect("Wuh oh!");
     let input = input.trim();
 
-    Command::execute(
-        &Command::from_input(input)
-    );
+    Command::execute(&Command::from_input(input));
     io::stdout().flush().unwrap();
 }

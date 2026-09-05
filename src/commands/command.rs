@@ -1,8 +1,8 @@
 use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::{fs, io};
-use std::os::unix::fs::PermissionsExt;
 
 const BUILT_IN_COMMANDS: [&str; 3] = ["exit", "echo", "type"];
 
@@ -10,7 +10,7 @@ pub enum Command {
     Exit,
     Echo { echo_string: String },
     Type { command_name: String },
-    NotFound { input: String },
+    NotFound { input: String, args: Vec<String> },
 }
 
 impl Command {
@@ -31,6 +31,7 @@ impl Command {
             },
             _ => Self::NotFound {
                 input: command.to_string(),
+                args: args.split(" ").map(|s| s.to_string()).collect(),
             },
         }
     }
@@ -44,8 +45,8 @@ impl Command {
             Command::Type { command_name } => {
                 type_cmd(command_name);
             }
-            Command::NotFound { input } => {
-                println!("{}: command not found", input);
+            Command::NotFound { input, args } => {
+                external_command(input, args);
             }
         }
         io::stdout().flush().unwrap();
@@ -76,7 +77,6 @@ fn find_in_path(cmd: &str) -> Option<PathBuf> {
         }
     }
     None
-
 }
 
 fn is_executable(path: &Path) -> bool {
@@ -86,5 +86,20 @@ fn is_executable(path: &Path) -> bool {
             mode & 0o111 != 0
         }
         Err(_) => false,
+    }
+}
+
+fn external_command(cmd: &str, args: &Vec<String>) {
+    if let Some(exe) = find_in_path(cmd) {
+        let output = std::process::Command::new(exe.file_name().unwrap())
+            .args(args)
+            .output()
+            .expect("failed to execute process");
+        println!(
+            "{}",
+            String::from_utf8_lossy(output.stdout.trim_ascii_end())
+        )
+    } else {
+        println!("{}: command not found", cmd);
     }
 }
