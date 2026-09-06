@@ -4,12 +4,14 @@ use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::{fs, io};
 
-const BUILT_IN_COMMANDS: [&str; 3] = ["exit", "echo", "type"];
+const BUILT_IN_COMMANDS: [&str; 5] = ["exit", "echo", "type", "pwd", "cd"];
 
 pub enum Command {
     Exit,
     Echo { echo_string: String },
     Type { command_name: String },
+    Pwd {},
+    Cd { arg: String },
     NotFound { input: String, args: Vec<String> },
 }
 
@@ -29,6 +31,10 @@ impl Command {
             "type" => Self::Type {
                 command_name: args.to_string(),
             },
+            "pwd" => Self::Pwd {},
+            "cd" => Self::Cd {
+                arg: args.to_string(),
+            },
             _ => Self::NotFound {
                 input: command.to_string(),
                 args: args.split(" ").map(|s| s.to_string()).collect(),
@@ -44,6 +50,12 @@ impl Command {
             }
             Command::Type { command_name } => {
                 type_cmd(command_name);
+            }
+            Command::Pwd {} => {
+                pwd();
+            }
+            Command::Cd { arg } => {
+                cd(arg);
             }
             Command::NotFound { input, args } => {
                 external_command(input, args);
@@ -101,5 +113,29 @@ fn external_command(cmd: &str, args: &Vec<String>) {
         )
     } else {
         println!("{}: command not found", cmd);
+    }
+}
+
+fn pwd() {
+    let cur_dir = std::env::current_dir().expect("problem reading current directory");
+    println!("{}", cur_dir.display())
+}
+
+fn cd(path: &str) {
+    let target = expand_tilde(path);
+    if let Err(e) = std::env::set_current_dir(&target) {
+        println!("cd: {}: No such file or directory", target.display());
+    }
+}
+
+fn expand_tilde(path: &str) -> PathBuf {
+    if path == "~" {
+        std::env::home_dir().unwrap_or_else(|| PathBuf::from(path))
+    } else if let Some(rest) = path.strip_prefix("~/") {
+        std::env::home_dir()
+            .map(|home| home.join(rest))
+            .unwrap_or_else(|| PathBuf::from(path))
+    } else {
+        PathBuf::from(path)
     }
 }

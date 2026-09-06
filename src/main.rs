@@ -1,3 +1,5 @@
+extern crate core;
+
 mod commands;
 
 use crate::commands::command::Command;
