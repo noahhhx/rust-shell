@@ -1,3 +1,4 @@
+use crate::commands::parser::parse;
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -8,7 +9,7 @@ const BUILT_IN_COMMANDS: [&str; 5] = ["exit", "echo", "type", "pwd", "cd"];
 
 pub enum Command {
     Exit,
-    Echo { echo_string: String },
+    Echo { echo_string: Vec<String> },
     Type { command_name: String },
     Pwd {},
     Cd { arg: String },
@@ -17,27 +18,23 @@ pub enum Command {
 
 impl Command {
     pub fn from_input(input: &str) -> Self {
-        let input = input.trim();
-        let (command, args) = match input.split_once(" ") {
-            None => (input, ""),
-            Some((command, args)) => (command, args),
-        };
+        let input = parse(input);
 
-        match command {
+        match input.command() {
             "echo" => Self::Echo {
-                echo_string: args.to_string(),
+                echo_string: input.args().clone(),
             },
             "exit" => Self::Exit,
             "type" => Self::Type {
-                command_name: args.to_string(),
+                command_name: input.args()[0].to_string(),
             },
             "pwd" => Self::Pwd {},
             "cd" => Self::Cd {
-                arg: args.to_string(),
+                arg: input.args()[0].to_string(),
             },
             _ => Self::NotFound {
-                input: command.to_string(),
-                args: args.split(" ").map(|s| s.to_string()).collect(),
+                input: input.command().to_string(),
+                args: input.args().clone(),
             },
         }
     }
@@ -65,8 +62,8 @@ impl Command {
     }
 }
 
-fn echo(echo_string: &String) {
-    println!("{echo_string}")
+fn echo(echo_string: &[String]) {
+    println!("{}", echo_string.join(" "))
 }
 
 fn type_cmd(type_command: &String) {
@@ -123,7 +120,7 @@ fn pwd() {
 
 fn cd(path: &str) {
     let target = expand_tilde(path);
-    if let Err(e) = std::env::set_current_dir(&target) {
+    if std::env::set_current_dir(&target).is_err() {
         println!("cd: {}: No such file or directory", target.display());
     }
 }
