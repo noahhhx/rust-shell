@@ -1,80 +1,119 @@
-use crate::commands::parser::parse;
-use std::io::Write;
+use crate::commands::parser::{Out, Redirect, parse};
+use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::exit;
-use std::{fs, io};
 
-const BUILT_IN_COMMANDS: [&str; 5] = ["exit", "echo", "type", "pwd", "cd"];
+pub struct Statement {
+    pub command: Command,
+    pub redirects: Vec<Redirect>,
+}
+
+impl Statement {
+    pub fn command(&self) -> &Command {
+        &self.command
+    }
+}
 
 pub enum Command {
     Exit,
-    Echo { echo_string: Vec<String> },
-    Type { command_name: String },
-    Pwd {},
-    Cd { arg: String },
-    NotFound { input: String, args: Vec<String> },
+    Echo { args: Vec<String> },
+    Type { name: Option<String> },
+    Pwd,
+    Cd { target: Option<String> },
+    External { program: String, args: Vec<String> },
+}
+
+pub enum StdReturn {
+    StdOut { out_string: String },
+    StdErr { err_string: String, exit_code: u8 },
 }
 
 impl Command {
-    pub fn from_input(input: &str) -> Self {
-        let input = parse(input);
-
-        match input.command() {
-            "echo" => Self::Echo {
-                echo_string: input.args().clone(),
+    fn from_words(program: &str, args: Vec<String>) -> Command {
+        match program {
+            "exit" => Command::Exit,
+            "echo" => Command::Echo { args },
+            "type" => Command::Type {
+                name: args.into_iter().next(),
             },
-            "exit" => Self::Exit,
-            "type" => Self::Type {
-                command_name: input.args()[0].to_string(),
+            "pwd" => Command::Pwd,
+            "cd" => Command::Cd {
+                target: args.into_iter().next(),
             },
-            "pwd" => Self::Pwd {},
-            "cd" => Self::Cd {
-                arg: input.args()[0].to_string(),
-            },
-            _ => Self::NotFound {
-                input: input.command().to_string(),
-                args: input.args().clone(),
+            _ => Command::External {
+                program: program.to_string(),
+                args,
             },
         }
     }
 
-    pub fn execute(&self) {
+    fn is_builtin(name: &str) -> bool {
+        !matches!(Self::from_words(name, Vec::new()),
+            Command::External { .. }
+        )
+    }
+
+    pub fn parse_line(input: &str) -> Option<Statement> {
+        let mut words = parse(input);
+        let redirects = vec![Redirect {
+            std_out_file: String::new(),
+            std_err_file: String::new(),
+            out: Out::StdOut,
+        }];
+
+        if words.is_empty() {
+            return None;
+        }
+
+        let program = words.remove(0);
+        let command = Self::from_words(&program, words);
+        Some(Statement { command, redirects })
+    }
+
+    pub fn execute(&self) -> Option<StdReturn> {
         match &self {
             Command::Exit => exit(0),
-            Command::Echo { echo_string } => {
-                echo(echo_string);
-            }
-            Command::Type { command_name } => {
-                type_cmd(command_name);
-            }
-            Command::Pwd {} => {
-                pwd();
-            }
-            Command::Cd { arg } => {
-                cd(arg);
-            }
-            Command::NotFound { input, args } => {
-                external_command(input, args);
-            }
+            Command::Echo { args } => echo(args),
+            Command::Type { name } => match name {
+                None => Some(default_err()),
+                Some(n) => type_cmd(n),
+            },
+            Command::Pwd => pwd(),
+            Command::Cd { target } => match target {
+                None => Some(default_err()),
+                Some(t) => cd(t),
+            },
+            Command::External { program, args } => external_command(program, args),
         }
-        io::stdout().flush().unwrap();
     }
 }
 
-fn echo(echo_string: &[String]) {
-    println!("{}", echo_string.join(" "))
+fn default_err() -> StdReturn {
+    StdReturn::StdErr {
+        err_string: "Oh no".to_string(),
+        exit_code: 1,
+    }
 }
 
-fn type_cmd(type_command: &String) {
+fn echo(echo_string: &[String]) -> Option<StdReturn> {
+    Some(StdReturn::StdOut {
+        out_string: echo_string.join(" "),
+    })
+}
+
+fn type_cmd(type_command: &str) -> Option<StdReturn> {
     let cmd = type_command.trim();
-    if BUILT_IN_COMMANDS.contains(&cmd) {
-        println!("{type_command} is a shell builtin")
+    let ret_val = if Command::is_builtin(&cmd) {
+        format!("{type_command} is a shell builtin")
     } else if let Some(path) = find_in_path(cmd) {
-        println!("{cmd} is {}", path.display())
+        format!("{cmd} is {}", path.display())
     } else {
-        println!("{cmd}: not found")
-    }
+        format!("{cmd}: not found")
+    };
+    Some(StdReturn::StdOut {
+        out_string: ret_val,
+    })
 }
 
 fn find_in_path(cmd: &str) -> Option<PathBuf> {
@@ -98,40 +137,46 @@ fn is_executable(path: &Path) -> bool {
     }
 }
 
-fn external_command(cmd: &str, args: &Vec<String>) {
-    if let Some(exe) = find_in_path(cmd) {
+fn external_command(cmd: &str, args: &[String]) -> Option<StdReturn> {
+    let out_str = if let Some(exe) = find_in_path(cmd) {
         let output = std::process::Command::new(exe.file_name().unwrap())
             .args(args)
             .output()
             .expect("failed to execute process");
-        println!(
+        format!(
             "{}",
             String::from_utf8_lossy(output.stdout.trim_ascii_end())
         )
     } else {
-        println!("{}: command not found", cmd);
-    }
+        format!("{cmd}: command not found")
+    };
+    Some(StdReturn::StdOut {
+        out_string: out_str,
+    })
 }
 
-fn pwd() {
+fn pwd() -> Option<StdReturn> {
     let cur_dir = std::env::current_dir().expect("problem reading current directory");
-    println!("{}", cur_dir.display())
+    Some(StdReturn::StdOut {
+        out_string: cur_dir.display().to_string(),
+    })
 }
 
-fn cd(path: &str) {
+fn cd(path: &str) -> Option<StdReturn> {
     let target = expand_tilde(path);
     if std::env::set_current_dir(&target).is_err() {
-        println!("cd: {}: No such file or directory", target.display());
+        return Some(StdReturn::StdOut {
+            out_string: format!("cd: {}: No such file or directory", target.display()),
+        });
     }
+    None
 }
 
 fn expand_tilde(path: &str) -> PathBuf {
     if path == "~" {
         std::env::home_dir().unwrap_or_else(|| PathBuf::from(path))
     } else if let Some(rest) = path.strip_prefix("~/") {
-        std::env::home_dir()
-            .map(|home| home.join(rest))
-            .unwrap_or_else(|| PathBuf::from(path))
+        std::env::home_dir().map_or_else(|| PathBuf::from(path), |home| home.join(rest))
     } else {
         PathBuf::from(path)
     }

@@ -4,6 +4,7 @@ mod commands;
 
 use crate::commands::command::Command;
 use std::io::{self, Write};
+use crate::commands::stream::handle;
 
 fn main() {
     loop {
@@ -19,6 +20,10 @@ fn run() {
     io::stdin().read_line(&mut input).expect("Wuh oh!");
     let input = input.trim();
 
-    Command::execute(&Command::from_input(input));
+    let parsed = &Command::parse_line(input);
+    if let Some(statement) = parsed {
+        let std_ret = Command::execute(statement.command());
+        handle(std_ret, &statement.redirects);
+    }
     io::stdout().flush().unwrap();
 }

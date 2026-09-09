@@ -6,18 +6,20 @@ enum State {
     InsideDoubleQuoteBackslash,
 }
 
-pub struct Input {
-    command: String,
-    args: Vec<String>,
+pub enum Out {
+    StdOut,
+    StdErr
 }
 
-impl Input {
-    pub fn command(&self) -> &str {
-        &self.command
-    }
+pub struct Redirect {
+    pub(crate) std_out_file: String,
+    pub(crate) std_err_file: String,
+    pub(crate) out: Out,
+}
 
-    pub fn args(&self) -> &Vec<String> {
-        &self.args
+impl Redirect {
+    pub fn out(&self) -> &Out {
+        &self.out
     }
 }
 
@@ -25,7 +27,7 @@ const SINGLE_QUOTE: u8 = b'\'';
 const DOUBLE_QUOTE: u8 = b'\"';
 const BACKSLASH: u8 = b'\\';
 
-pub fn parse(input: &str) -> Input {
+pub fn parse(input: &str) -> Vec<String> {
     let mut result: Vec<String> = Vec::new();
     let mut current = String::new();
     let mut state = State::Default;
@@ -58,7 +60,7 @@ pub fn parse(input: &str) -> Input {
             }
             State::InsideDoubleQuote => {
                 if *i == DOUBLE_QUOTE {
-                    state = State::Default
+                    state = State::Default;
                 } else if *i == BACKSLASH {
                     state = State::InsideDoubleQuoteBackslash;
                 } else {
@@ -83,21 +85,8 @@ pub fn parse(input: &str) -> Input {
 
     // Handle last word
     if !current.is_empty() {
-        result.push(current.clone());
+        result.push(current);
     }
 
-    let command = result.first().unwrap();
-    let mut arguments = Vec::new();
-    let mut i = 0;
-    for r in &result {
-        if i == 0 {
-            i += 1;
-            continue;
-        }
-        arguments.push(r.to_string());
-    }
-    Input {
-        command: command.clone(),
-        args: arguments,
-    }
+    result
 }
