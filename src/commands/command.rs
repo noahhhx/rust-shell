@@ -1,8 +1,9 @@
-use crate::commands::parser::{Out, Redirect, parse};
+use crate::commands::parser::{parse, extract_redirects, Out, Redirect};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::exit;
+use crate::commands::command::StdReturn::{StdErr, StdOut};
 
 pub struct Statement {
     pub command: Command,
@@ -26,7 +27,7 @@ pub enum Command {
 
 pub enum StdReturn {
     StdOut { out_string: String },
-    StdErr { err_string: String, exit_code: u8 },
+    StdErr { err_string: String, exit_code: i32 },
 }
 
 impl Command {
@@ -55,12 +56,8 @@ impl Command {
     }
 
     pub fn parse_line(input: &str) -> Option<Statement> {
-        let mut words = parse(input);
-        let redirects = vec![Redirect {
-            std_out_file: String::new(),
-            std_err_file: String::new(),
-            out: Out::StdOut,
-        }];
+        let words = parse(input);
+        let (mut words, redirects) = extract_redirects(words);
 
         if words.is_empty() {
             return None;
@@ -138,20 +135,25 @@ fn is_executable(path: &Path) -> bool {
 }
 
 fn external_command(cmd: &str, args: &[String]) -> Option<StdReturn> {
-    let out_str = if let Some(exe) = find_in_path(cmd) {
-        let output = std::process::Command::new(exe.file_name().unwrap())
-            .args(args)
-            .output()
-            .expect("failed to execute process");
-        format!(
-            "{}",
-            String::from_utf8_lossy(output.stdout.trim_ascii_end())
-        )
-    } else {
-        format!("{cmd}: command not found")
+    let Some(exe) = find_in_path(cmd) else {
+        return Some(StdOut {
+            out_string: format!("{cmd}: command not found")
+        });
     };
-    Some(StdReturn::StdOut {
-        out_string: out_str,
+
+    let output = std::process::Command::new(exe.file_name().unwrap())
+        .args(args)
+        .output()
+        .expect("failed to execute process");
+    let err = String::from_utf8_lossy(output.stderr.trim_ascii_end());
+    if (!err.is_empty()) {
+        return Some(StdErr {
+            err_string: format!("{err}"),
+            exit_code: 1
+        })
+    };
+    Some(StdOut {
+        out_string: String::from_utf8_lossy(output.stdout.trim_ascii_end()).into_owned(),
     })
 }
 

@@ -22,8 +22,9 @@ fn run() {
 
     let parsed = &Command::parse_line(input);
     if let Some(statement) = parsed {
-        let std_ret = Command::execute(statement.command());
-        handle(std_ret, &statement.redirects);
+        if let Some(std_ret) = Command::execute(statement.command()) {
+            handle(std_ret, &statement.redirects);
+        }
     }
     io::stdout().flush().unwrap();
 }

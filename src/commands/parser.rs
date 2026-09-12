@@ -8,19 +8,7 @@ enum State {
 
 pub enum Out {
     StdOut,
-    StdErr
-}
-
-pub struct Redirect {
-    pub(crate) std_out_file: String,
-    pub(crate) std_err_file: String,
-    pub(crate) out: Out,
-}
-
-impl Redirect {
-    pub fn out(&self) -> &Out {
-        &self.out
-    }
+    StdErr,
 }
 
 const SINGLE_QUOTE: u8 = b'\'';
@@ -89,4 +77,35 @@ pub fn parse(input: &str) -> Vec<String> {
     }
 
     result
+}
+
+pub enum Redirect {
+    File {
+        out: Out,
+        file: String,
+        append: bool,
+    },
+    None {},
+}
+
+pub fn extract_redirects(words: Vec<String>) -> (Vec<String>, Vec<Redirect>) {
+    let mut clean: Vec<String> = Vec::new();
+    let mut redirects = Vec::new();
+    let mut iter = words.iter();
+
+    while let Some(word) = iter.next() {
+        match word.as_str() {
+            ">" | "1>" => {
+                if let Some(file) = iter.next() {
+                    redirects.push(Redirect::File {
+                        out: Out::StdOut,
+                        file: file.to_string(),
+                        append: false,
+                    });
+                }
+            }
+            _ => clean.push(word.to_string()),
+        }
+    }
+    (clean, redirects)
 }
