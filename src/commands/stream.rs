@@ -5,29 +5,29 @@ use std::path::PathBuf;
 use std::process::exit;
 use crate::commands::command::StdReturn;
 
-pub fn handle(std_ret: StdReturn, redirects: &[Redirect]) {
-
-    let out_string = match std_ret {
-        StdReturn::StdOut { out_string } => {
-            out_string
-        }
-        StdReturn::StdErr { err_string, exit_code } => {
-            eprintln!("{err_string}");
-            return;
-        }
-    };
-
-    if let Some(redirect) = redirects.iter().next() {
+pub fn handle(mut std_ret: StdReturn, redirects: &[Redirect]) {
+    for redirect in redirects {
         match redirect {
             Redirect::File { out, file, append } => {
-                write_to_file(PathBuf::from(file), &out_string, *append);
+                match out {
+                    Out::StdOut => {
+                        let out_string = std_ret.std_out_string.take().unwrap_or_default();
+                        write_to_file(PathBuf::from(file), &out_string, *append);
+                    }
+                    Out::StdErr => {
+                        let err_string = std_ret.std_err_string.take().unwrap_or_default();
+                        write_to_file(PathBuf::from(file), &err_string, *append);
+                    }
+                }
             }
-            Redirect::None { .. } => {
-                println!("test")
-            }
+            Redirect::None { .. } => {}
         }
-    } else {
+    }
+    if let Some(out_string) = std_ret.std_out_string {
         println!("{out_string}");
+    }
+    if let Some(err_string) = std_ret.std_err_string {
+        eprintln!("{err_string}");
     }
 }
 
@@ -39,6 +39,10 @@ fn write_to_file(path: PathBuf, content: &str, append: bool) {
         .truncate(!append)
         .open(path)
         .unwrap();
+
+    if content.is_empty() {
+        return;
+    }
 
     if let Err(e) = writeln!(&mut file, "{}", content) {
         eprintln!("Wuh oh!");

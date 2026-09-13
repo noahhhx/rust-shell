@@ -104,6 +104,24 @@ pub fn extract_redirects(words: Vec<String>) -> (Vec<String>, Vec<Redirect>) {
                     });
                 }
             }
+            "2>" => {
+                if let Some(file) = iter.next() {
+                    redirects.push(Redirect::File {
+                        out: Out::StdErr,
+                        file: file.to_string(),
+                        append: false
+                    })
+                }
+            }
+            ">>" | "1>>" => {
+                if let Some(file) = iter.next() {
+                    redirects.push(Redirect::File {
+                        out: Out::StdOut,
+                        file: file.to_string(),
+                        append: true,
+                    });
+                }
+            }
             _ => clean.push(word.to_string()),
         }
     }
