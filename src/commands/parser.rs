@@ -90,40 +90,39 @@ pub enum Redirect {
 
 pub fn extract_redirects(words: Vec<String>) -> (Vec<String>, Vec<Redirect>) {
     let mut clean: Vec<String> = Vec::new();
-    let mut redirects = Vec::new();
+    let mut redirects: Vec<Redirect> = Vec::new();
     let mut iter = words.iter();
 
     while let Some(word) = iter.next() {
         match word.as_str() {
             ">" | "1>" => {
                 if let Some(file) = iter.next() {
-                    redirects.push(Redirect::File {
-                        out: Out::StdOut,
-                        file: file.to_string(),
-                        append: false,
-                    });
+                    push_redirect(&mut redirects, Out::StdOut, file.to_string(), false);
                 }
             }
             "2>" => {
                 if let Some(file) = iter.next() {
-                    redirects.push(Redirect::File {
-                        out: Out::StdErr,
-                        file: file.to_string(),
-                        append: false
-                    })
+                    push_redirect(&mut redirects, Out::StdErr, file.to_string(), false);
                 }
             }
             ">>" | "1>>" => {
                 if let Some(file) = iter.next() {
-                    redirects.push(Redirect::File {
-                        out: Out::StdOut,
-                        file: file.to_string(),
-                        append: true,
-                    });
+                    push_redirect(&mut redirects, Out::StdOut, file.to_string(), true);
+                }
+            }
+            "2>>" => {
+                if let Some(file) = iter.next() {
+                    push_redirect(&mut redirects, Out::StdErr, file.to_string(), true);
                 }
             }
             _ => clean.push(word.to_string()),
         }
     }
     (clean, redirects)
+}
+
+fn push_redirect(redirects: &mut Vec<Redirect>, out: Out, file: String, append: bool) {
+    redirects.push(Redirect::File {
+        out, file, append
+    });
 }
