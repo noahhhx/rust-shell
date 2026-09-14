@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::process::exit;
 use crate::commands::command::StdReturn;
 
-pub fn handle(mut std_ret: StdReturn, redirects: &[Redirect]) {
+pub fn handle(mut std_ret: StdReturn, redirects: &[Redirect], interactive: bool) {
     for redirect in redirects {
         match redirect {
             Redirect::File { out, file, append } => {
@@ -24,10 +24,26 @@ pub fn handle(mut std_ret: StdReturn, redirects: &[Redirect]) {
         }
     }
     if let Some(out_string) = std_ret.std_out_string {
-        println!("{out_string}");
+        print_stream(&out_string, interactive, false);
     }
     if let Some(err_string) = std_ret.std_err_string {
-        eprintln!("{err_string}");
+        print_stream(&err_string, interactive, true);
+    }
+
+}
+
+fn print_stream(text: &str, interactive: bool, to_stderr: bool) {
+    if interactive {
+        let text = text.replace('\n', "\r\n");
+        if to_stderr {
+            eprint!("{text}\r\n");
+        } else {
+            print!("{text}\r\n");
+        }
+    } else if to_stderr {
+        eprintln!("{text}");
+    } else {
+        println!("{text}");
     }
 }
 
