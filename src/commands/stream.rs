@@ -1,26 +1,22 @@
+use crate::commands::command::StdReturn;
 use crate::commands::parser::{Out, Redirect};
-use std::fs::{File, OpenOptions};
+use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
-use std::process::exit;
-use crate::commands::command::StdReturn;
 
 pub fn handle(mut std_ret: StdReturn, redirects: &[Redirect], interactive: bool) {
     for redirect in redirects {
         match redirect {
-            Redirect::File { out, file, append } => {
-                match out {
-                    Out::StdOut => {
-                        let out_string = std_ret.std_out_string.take().unwrap_or_default();
-                        write_to_file(PathBuf::from(file), &out_string, *append);
-                    }
-                    Out::StdErr => {
-                        let err_string = std_ret.std_err_string.take().unwrap_or_default();
-                        write_to_file(PathBuf::from(file), &err_string, *append);
-                    }
+            Redirect::File { out, file, append } => match out {
+                Out::StdOut => {
+                    let out_string = std_ret.std_out_string.take().unwrap_or_default();
+                    write_to_file(PathBuf::from(file), &out_string, *append);
                 }
-            }
-            Redirect::None { .. } => {}
+                Out::StdErr => {
+                    let err_string = std_ret.std_err_string.take().unwrap_or_default();
+                    write_to_file(PathBuf::from(file), &err_string, *append);
+                }
+            },
         }
     }
     if let Some(out_string) = std_ret.std_out_string {
@@ -29,7 +25,6 @@ pub fn handle(mut std_ret: StdReturn, redirects: &[Redirect], interactive: bool)
     if let Some(err_string) = std_ret.std_err_string {
         print_stream(&err_string, interactive, true);
     }
-
 }
 
 fn print_stream(text: &str, interactive: bool, to_stderr: bool) {
@@ -60,7 +55,7 @@ fn write_to_file(path: PathBuf, content: &str, append: bool) {
         return;
     }
 
-    if let Err(e) = writeln!(&mut file, "{}", content) {
+    if writeln!(&mut file, "{content}").is_err() {
         eprintln!("Wuh oh!");
     }
 }

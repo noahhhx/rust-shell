@@ -85,10 +85,9 @@ pub enum Redirect {
         file: String,
         append: bool,
     },
-    None {},
 }
 
-pub fn extract_redirects(words: Vec<String>) -> (Vec<String>, Vec<Redirect>) {
+pub fn extract_redirects(words: &[String]) -> (Vec<String>, Vec<Redirect>) {
     let mut clean: Vec<String> = Vec::new();
     let mut redirects: Vec<Redirect> = Vec::new();
     let mut iter = words.iter();
@@ -97,32 +96,30 @@ pub fn extract_redirects(words: Vec<String>) -> (Vec<String>, Vec<Redirect>) {
         match word.as_str() {
             ">" | "1>" => {
                 if let Some(file) = iter.next() {
-                    push_redirect(&mut redirects, Out::StdOut, file.to_string(), false);
+                    push_redirect(&mut redirects, Out::StdOut, file.clone(), false);
                 }
             }
             "2>" => {
                 if let Some(file) = iter.next() {
-                    push_redirect(&mut redirects, Out::StdErr, file.to_string(), false);
+                    push_redirect(&mut redirects, Out::StdErr, file.clone(), false);
                 }
             }
             ">>" | "1>>" => {
                 if let Some(file) = iter.next() {
-                    push_redirect(&mut redirects, Out::StdOut, file.to_string(), true);
+                    push_redirect(&mut redirects, Out::StdOut, file.clone(), true);
                 }
             }
             "2>>" => {
                 if let Some(file) = iter.next() {
-                    push_redirect(&mut redirects, Out::StdErr, file.to_string(), true);
+                    push_redirect(&mut redirects, Out::StdErr, file.clone(), true);
                 }
             }
-            _ => clean.push(word.to_string()),
+            _ => clean.push(word.clone()),
         }
     }
     (clean, redirects)
 }
 
 fn push_redirect(redirects: &mut Vec<Redirect>, out: Out, file: String, append: bool) {
-    redirects.push(Redirect::File {
-        out, file, append
-    });
+    redirects.push(Redirect::File { out, file, append });
 }
