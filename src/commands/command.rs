@@ -16,7 +16,7 @@ impl Statement {
     }
 }
 
-pub const BUILT_IN_COMMANDS: [&str; 5] = ["exit", "echo", "type", "pwd", "cd"];
+pub const BUILT_IN_COMMANDS: [&str; 6] = ["exit", "echo", "type", "pwd", "cd", "complete"];
 
 pub enum Command {
     Exit,
@@ -24,6 +24,7 @@ pub enum Command {
     Type { name: Option<String> },
     Pwd,
     Cd { target: Option<String> },
+    Complete,
     External { program: String, args: Vec<String> },
 }
 
@@ -60,6 +61,7 @@ impl Command {
             "cd" => Command::Cd {
                 target: args.into_iter().next(),
             },
+            "complete" => Command::Complete,
             _ => Command::External {
                 program: program.to_string(),
                 args,
@@ -97,6 +99,7 @@ impl Command {
                 None => Some(default_err()),
                 Some(t) => cd(t),
             },
+            Command::Complete => None,
             Command::External { program, args } => Some(external_command(program, args)),
         }
     }

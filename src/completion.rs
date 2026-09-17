@@ -29,8 +29,6 @@ fn exe_candidates(prefix: &str) -> Vec<String> {
 }
 
 fn file_candidates(word: &str) -> Vec<String> {
-    let cur_dir = env::current_dir().expect("problem reading current directory");
-
     if word.contains('/') {
         if let Some((path, file_prefix)) = word.rsplit_once('/') {
             let base = Path::new(path);
@@ -51,6 +49,7 @@ fn file_candidates(word: &str) -> Vec<String> {
         }
         Vec::new()
     } else {
+        let cur_dir = env::current_dir().expect("problem reading current directory");
         let mut files: Vec<String> = list_files_in_dir(&cur_dir)
             .unwrap_or_default()
             .into_iter()
