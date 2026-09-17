@@ -1,7 +1,8 @@
-use std::{fs, io};
+use std::{env, fs, io};
 use std::path::Path;
 use crate::commands::command::{find_in_path_starts_with, BUILT_IN_COMMANDS};
 
+#[must_use]
 pub fn complete(word: &str, command_position: bool) -> Vec<String> {
     let mut candidates = if command_position {
         exe_candidates(word)
@@ -16,7 +17,7 @@ fn exe_candidates(prefix: &str) -> Vec<String> {
     let mut candidates: Vec<String> = BUILT_IN_COMMANDS
         .iter()
         .filter(|c| c.starts_with(prefix))
-        .map(|c| c.to_string())
+        .map(ToString::to_string)
         .collect();
 
     for entry in find_in_path_starts_with(prefix) {
@@ -28,12 +29,58 @@ fn exe_candidates(prefix: &str) -> Vec<String> {
 }
 
 fn file_candidates(word: &str) -> Vec<String> {
-    let cur_dir = std::env::current_dir().expect("problem reading current directory");
-    list_files_in_dir(&cur_dir)
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|name| name.starts_with(word))
-        .collect()
+    let cur_dir = env::current_dir().expect("problem reading current directory");
+
+    if word.contains('/') {
+        if let Some((path, file_prefix)) = word.rsplit_once('/') {
+            let base = Path::new(path);
+            let mut files: Vec<String> = list_files_in_dir(base)
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|name| name.starts_with(file_prefix))
+                .map(|name| base.join(name).to_string_lossy().into_owned())
+                .collect();
+            let dirs: Vec<String> = list_dirs_in_dir(base)
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|name| name.starts_with(file_prefix))
+                .map(|name| base.join(name + "/").to_string_lossy().into_owned())
+                .collect();
+            files.extend(dirs.clone());
+            return files;
+        }
+        Vec::new()
+    } else {
+        let mut files: Vec<String> = list_files_in_dir(&cur_dir)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|name| name.starts_with(word))
+            .collect();
+        let dirs: Vec<String> = list_dirs_in_dir(&cur_dir)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|name| name.starts_with(word))
+            .map(|name| name + "/")
+            .collect();
+        files.extend(dirs.clone());
+        files
+    }
+}
+
+fn list_dirs_in_dir(path: &Path) -> io::Result<Vec<String>> {
+    let mut dirs = Vec::new();
+    if path.is_dir() {
+        for entry in fs::read_dir(path)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                dirs.push(path.file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_default());
+            }
+        }
+    }
+    Ok(dirs)
 }
 
 fn list_files_in_dir(path: &Path) -> io::Result<Vec<String>> {
@@ -52,6 +99,7 @@ fn list_files_in_dir(path: &Path) -> io::Result<Vec<String>> {
     Ok(files)
 }
 
+#[must_use]
 pub fn common_prefix(candidates: &[String]) -> String {
     let Some(first) = candidates.first() else {
         return String::new();

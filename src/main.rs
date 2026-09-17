@@ -115,8 +115,11 @@ fn tab_complete(
 
         if candidates.len() == 1 {
             line.truncate(word_start);
-            line.push_str(&candidates[0]);
-            line.push(' ');
+            let candidate = &candidates[0];
+            line.push_str(candidate);
+            if !candidate.ends_with('/') {
+                line.push(' ');
+            }
             write!(stdout, "\r$ {line}{}", termion::clear::UntilNewline).unwrap();
             None
         } else if prefix.len() > word.len() {
