@@ -24,7 +24,7 @@ pub enum Command {
     Type { name: Option<String> },
     Pwd,
     Cd { target: Option<String> },
-    Complete,
+    Complete { args: Vec<String> },
     External { program: String, args: Vec<String> },
 }
 
@@ -61,7 +61,9 @@ impl Command {
             "cd" => Command::Cd {
                 target: args.into_iter().next(),
             },
-            "complete" => Command::Complete,
+            "complete" => Command::Complete {
+                args
+            },
             _ => Command::External {
                 program: program.to_string(),
                 args,
@@ -99,9 +101,40 @@ impl Command {
                 None => Some(default_err()),
                 Some(t) => cd(t),
             },
-            Command::Complete => None,
+            Command::Complete { args } => Some(complete(args)),
             Command::External { program, args } => Some(external_command(program, args)),
         }
+    }
+}
+
+fn complete(args: &[String]) -> StdReturn {
+    let (flag, arg) = parse_complete_args(args);
+    match flag.as_str() {
+        "-p" => {
+            print_completion(arg)
+        },
+        _ => {default_err()}
+    }
+}
+
+fn print_completion(arg: String) -> StdReturn {
+    if arg.is_empty() {
+        StdReturn::from_out("no completion specification".to_string())
+    } else {
+        StdReturn::from_out(format!("complete: {arg}: no completion specification"))
+    }
+}
+
+fn parse_complete_args(args: &[String]) -> (String, String) {
+    let mut iter = args.into_iter();
+    if let Some(flag) = iter.next() {
+        if let Some(command) = iter.next() {
+            (flag.to_string(), command.to_string())
+        } else {
+            (flag.to_string(), String::new())
+        }
+    } else {
+        (String::new(), String::new())
     }
 }
 
