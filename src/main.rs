@@ -1,7 +1,9 @@
 mod commands;
+pub mod completion;
 
-use crate::commands::command::{BUILT_IN_COMMANDS, Command, find_in_path_starts_with};
+use crate::commands::command::Command;
 use crate::commands::stream::handle;
+use crate::completion::{common_prefix, complete};
 use std::io::{self, IsTerminal, Write};
 use termion::event::Key;
 use termion::input::{Keys, TermRead};
@@ -51,21 +53,7 @@ fn read_line(
                 return Some(line);
             }
             Key::Char('\t') => {
-                if let Some(list) = &pending_tab {
-                    new_line(stdout, interactive);
-                    for item in list {
-                        write!(stdout, "{item}  ").unwrap();
-                    }
-                    new_line(stdout, interactive);
-                    write!(stdout, "\r$ {line}").unwrap();
-                } else {
-                    let cands = tab_complete(stdout, &mut line);
-                    pending_tab = (cands.len() > 1).then_some(cands.clone());
-                    if cands.len() == 1 {
-                        line = cands[0].clone() + " ";
-                        write!(stdout, "\r$ {line}").unwrap();
-                    }
-                }
+                pending_tab = tab_complete(pending_tab, stdout, &mut line, interactive);
                 stdout.flush().unwrap();
             }
             Key::Char(c) => {
@@ -107,69 +95,44 @@ fn new_line(stdout: &mut dyn Write, interactive: bool) {
     stdout.flush().unwrap();
 }
 
-fn tab_complete(stdout: &mut dyn Write, line: &mut String) -> Vec<String> {
-    let typed = line.clone();
-    let mut candidates: Vec<String> = Vec::new();
-
-    for command in BUILT_IN_COMMANDS {
-        if command.starts_with(&typed) {
-            candidates.push(command.to_string());
-        }
-    }
-
-    for entry in find_in_path_starts_with(&typed) {
-        if !candidates.contains(&entry) {
-            candidates.push(entry);
-        }
-    }
-
-    if let Some(ret) = common_longest_prefix(&typed, &candidates) {
-        *line = ret;
+fn tab_complete(
+    pending_tab: Option<Vec<String>>,
+    stdout: &mut dyn Write,
+    line: &mut String,
+    interactive: bool,
+) -> Option<Vec<String>> {
+    if let Some(list) = &pending_tab {
+        new_line(stdout, interactive);
+        write!(stdout, "{}", list.join("  ")).unwrap();
+        new_line(stdout, interactive);
         write!(stdout, "\r$ {line}").unwrap();
-        return Vec::new();
-    }
+        pending_tab
+    } else {
+        let word_start = line.rfind(char::is_whitespace).map_or(0, |i| i + 1);
+        let word = line[word_start..].to_string();
+        let candidates = complete(&word, word_start == 0);
+        let prefix = common_prefix(&candidates);
 
-    if candidates.is_empty() || candidates.len() > 1 {
-        write!(stdout, "\x07").unwrap();
-    }
-    candidates.sort();
-    candidates
-}
-
-fn common_longest_prefix(typed: &str, candidates: &[String]) -> Option<String> {
-    let mut count = 0;
-    let mut current = String::new();
-    for cand in candidates {
-        if cand.starts_with(typed)
-            && !cand.eq(typed)
-            && (count == 0 || (count > 0 && current.len() > cand.len()))
-        {
-            current.clone_from(cand);
-            count += 1;
+        if candidates.len() == 1 {
+            line.truncate(word_start);
+            line.push_str(&candidates[0]);
+            line.push(' ');
+            write!(stdout, "\r$ {line}{}", termion::clear::UntilNewline).unwrap();
+            None
+        } else if prefix.len() > word.len() {
+            line.truncate(word_start);
+            line.push_str(&prefix);
+            if candidates.len() > 1 {
+                write!(stdout, "\x07").unwrap();
+            }
+            write!(stdout, "\r$ {line}{}", termion::clear::UntilNewline).unwrap();
+            Some(candidates)
+        } else if candidates.len() > 1 {
+            write!(stdout, "\x07").unwrap();
+            Some(candidates)
+        } else {
+            write!(stdout, "\x07").unwrap();
+            None
         }
     }
-    if count > 1 {
-        return Some(current);
-    }
-    None
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // #[test]
-    // fn test_longest_prefix() {
-    //     let typed = "xyz_";
-    //     let candidates: Vec<String> = vec![
-    //         "xyz_foo".to_string(),
-    //         "xyz_foo_bar".to_string(),
-    //         "xyz_foo_bar_baz".to_string(),
-    //     ];
-    //
-    //     assert_eq!(
-    //         "xyz_foo",
-    //         common_longest_prefix(typed, &candidates).unwrap()
-    //     )
-    // }
 }
