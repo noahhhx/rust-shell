@@ -137,13 +137,14 @@ pub fn find_in_path_starts_with(prefix: &str) -> Vec<String> {
     let path_var = std::env::var("PATH").unwrap_or_default();
     let mut candidates: Vec<String> = Vec::new();
     for dir in std::env::split_paths(&path_var) {
-        for entry in fs::read_dir(&dir).into_iter().flatten() {
-            let path = entry.unwrap().path();
-            if is_executable(&path)
-                && path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .is_some_and(|name| name.starts_with(prefix))
+        for entry in fs::read_dir(&dir).into_iter().flatten().flatten() {
+            let path = entry.path();
+            if path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|name| name.starts_with(prefix))
+                && path.is_file()
+                && is_executable(&path)
             {
                 candidates.push(
                     path.file_name()
