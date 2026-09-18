@@ -1,6 +1,8 @@
 use std::{env, fs, io};
 use std::path::Path;
-use crate::commands::command::{find_in_path_starts_with, BUILT_IN_COMMANDS};
+use std::process::Command;
+use crate::commands::command::{find_in_path_starts_with, BUILT_IN_COMMANDS, is_executable};
+use crate::commands::complete::get_completion;
 
 #[must_use]
 pub fn complete(word: &str, command_position: bool) -> Vec<String> {
@@ -11,6 +13,27 @@ pub fn complete(word: &str, command_position: bool) -> Vec<String> {
     };
     candidates.sort();
     candidates
+}
+
+#[must_use]
+pub fn stored_complete(word: &str) -> Option<String> {
+    let completion_script = get_completion(word);
+    if completion_script.is_empty() {
+        None
+    } else {
+        Some(run_complete_script(&completion_script))
+    }
+}
+
+fn run_complete_script(cmd: &str) -> String {
+    let path = Path::new(cmd);
+    if path.is_file() && is_executable(path) {
+        let output = Command::new(path)
+            .output()
+            .expect("uh fucking oh");
+        return String::from_utf8_lossy(output.stdout.trim_ascii_end()).to_string();
+    }
+    String::new()
 }
 
 fn exe_candidates(prefix: &str) -> Vec<String> {

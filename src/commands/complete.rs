@@ -14,6 +14,17 @@ pub fn complete(args: &[String]) -> StdReturn {
     }
 }
 
+pub fn get_completion(key: &str) -> String {
+    if let Some(test) = COMPLETION_MAP
+        .lock()
+        .unwrap()
+        .get(key) {
+        test.clone()
+    } else {
+        String::new()
+    }
+}
+
 fn register_completion(args: &[String]) -> StdReturn {
     let [first, second, ..] = args else {
         return default_err();
@@ -39,8 +50,7 @@ fn print_completion(arg: &[String]) -> StdReturn {
             ))
         } else {
             StdReturn::from_out(format!(
-                "complete: {}: no completion specification",
-                cmd
+                "complete: {cmd}: no completion specification"
             ))
         }
     }

@@ -2,8 +2,9 @@ mod commands;
 pub mod completion;
 
 use crate::commands::command::Command;
+use crate::commands::parser::parse;
 use crate::commands::stream::handle;
-use crate::completion::{common_prefix, complete};
+use crate::completion::{common_prefix, complete, stored_complete};
 use std::io::{self, IsTerminal, Write};
 use termion::event::Key;
 use termion::input::{Keys, TermRead};
@@ -110,6 +111,18 @@ fn tab_complete(
     } else {
         let word_start = line.rfind(char::is_whitespace).map_or(0, |i| i + 1);
         let word = line[word_start..].to_string();
+
+        let parsed = parse(line);
+        if !line.is_empty() && parsed.len() == 1 && line.ends_with(' ') {
+            // candidate for the thing!!!
+            if let Some(complete) = stored_complete(&parsed[0]) {
+                line.push_str(&complete);
+                line.push(' ');
+                write!(stdout, "\r$ {line}{}", termion::clear::UntilNewline).unwrap();
+                return None;
+            }
+        }
+
         let candidates = complete(&word, word_start == 0);
         let prefix = common_prefix(&candidates);
 

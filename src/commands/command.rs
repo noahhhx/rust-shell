@@ -168,7 +168,7 @@ pub fn find_in_path_starts_with(prefix: &str) -> Vec<String> {
     candidates
 }
 
-fn is_executable(path: &Path) -> bool {
+pub fn is_executable(path: &Path) -> bool {
     match fs::metadata(path) {
         Ok(metadata) => {
             let mode = metadata.permissions().mode();
