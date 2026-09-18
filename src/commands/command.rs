@@ -4,6 +4,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::string::ToString;
+use crate::commands::complete::complete;
 
 pub struct Statement {
     pub command: Command,
@@ -41,10 +42,17 @@ impl StdReturn {
         }
     }
 
-    fn from_out(out_string: String) -> Self {
+    pub(crate) fn from_out(out_string: String) -> Self {
         StdReturn {
             std_out_string: Some(out_string),
             std_err_string: None,
+        }
+    }
+
+    pub fn empty() -> Self {
+        StdReturn {
+            std_out_string: None,
+            std_err_string: None
         }
     }
 }
@@ -61,9 +69,7 @@ impl Command {
             "cd" => Command::Cd {
                 target: args.into_iter().next(),
             },
-            "complete" => Command::Complete {
-                args
-            },
+            "complete" => Command::Complete { args },
             _ => Command::External {
                 program: program.to_string(),
                 args,
@@ -107,38 +113,7 @@ impl Command {
     }
 }
 
-fn complete(args: &[String]) -> StdReturn {
-    let (flag, arg) = parse_complete_args(args);
-    match flag.as_str() {
-        "-p" => {
-            print_completion(arg)
-        },
-        _ => {default_err()}
-    }
-}
-
-fn print_completion(arg: String) -> StdReturn {
-    if arg.is_empty() {
-        StdReturn::from_out("no completion specification".to_string())
-    } else {
-        StdReturn::from_out(format!("complete: {arg}: no completion specification"))
-    }
-}
-
-fn parse_complete_args(args: &[String]) -> (String, String) {
-    let mut iter = args.into_iter();
-    if let Some(flag) = iter.next() {
-        if let Some(command) = iter.next() {
-            (flag.to_string(), command.to_string())
-        } else {
-            (flag.to_string(), String::new())
-        }
-    } else {
-        (String::new(), String::new())
-    }
-}
-
-fn default_err() -> StdReturn {
+pub(crate) fn default_err() -> StdReturn {
     StdReturn::from_error("Oh no".to_string())
 }
 
