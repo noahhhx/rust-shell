@@ -1,29 +1,38 @@
-use crate::commands::command::StdReturn;
-use crate::commands::parser::{Out, Redirect};
+use crate::commands::{
+    outcome::Outcome,
+    parser::{Out, Redirect},
+};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
+use std::process::exit;
 
-pub fn handle(mut std_ret: StdReturn, redirects: &[Redirect], interactive: bool) {
+pub fn handle(outcome: Outcome, redirects: &[Redirect], interactive: bool) {
+    let (mut stdout, mut stderr) = match outcome {
+        Outcome::Quit(code) => exit(code),
+        Outcome::Output { stdout, stderr } => (stdout, stderr),
+        Outcome::Ok => (String::new(), String::new()),
+    };
+
     for redirect in redirects {
         match redirect {
             Redirect::File { out, file, append } => match out {
                 Out::StdOut => {
-                    let out_string = std_ret.std_out_string.take().unwrap_or_default();
-                    write_to_file(PathBuf::from(file), &out_string, *append);
+                    write_to_file(PathBuf::from(file), &stdout, *append);
+                    stdout.clear();
                 }
                 Out::StdErr => {
-                    let err_string = std_ret.std_err_string.take().unwrap_or_default();
-                    write_to_file(PathBuf::from(file), &err_string, *append);
+                    write_to_file(PathBuf::from(file), &stderr, *append);
+                    stderr.clear();
                 }
             },
         }
     }
-    if let Some(out_string) = std_ret.std_out_string {
-        print_stream(&out_string, interactive, false);
+    if !stdout.is_empty() {
+        print_stream(&stdout, interactive, false);
     }
-    if let Some(err_string) = std_ret.std_err_string {
-        print_stream(&err_string, interactive, true);
+    if !stderr.is_empty() {
+        print_stream(&stderr, interactive, true);
     }
 }
 

@@ -1,10 +1,14 @@
 mod commands;
 pub mod completion;
+pub mod shell;
 
-use crate::commands::command::Command;
-use crate::commands::parser::parse;
-use crate::commands::stream::handle;
-use crate::completion::{common_prefix, complete, stored_complete};
+use crate::commands::command::Statement;
+use crate::commands::outcome::Outcome;
+use crate::commands::stream::{self};
+use crate::commands::{execute, parser::parse};
+use crate::completion::complete;
+use crate::completion::{common_prefix, stored_complete};
+use crate::shell::Shell;
 use std::io::{self, IsTerminal, Write};
 use termion::event::Key;
 use termion::input::{Keys, TermRead};
@@ -21,15 +25,15 @@ fn main() {
 
     let mut keys = io::stdin().keys();
 
-    while let Some(line) = read_line(&mut keys, stdout.as_mut(), interactive) {
-        let Some(statement) = Command::parse_line(&line) else {
+    let mut shell: Shell = Shell::default();
+
+    while let Some(line) = read_line(&mut keys, &mut stdout, interactive, &mut shell) {
+        let Some(stmt) = Statement::parse(&line) else {
             continue;
         };
-        if matches!(statement.command(), Command::Exit) {
-            break;
-        }
-        if let Some(std_ret) = statement.command.execute() {
-            handle(std_ret, &statement.redirects, interactive);
+        match execute(&mut shell, &stmt) {
+            Outcome::Quit(_) => break,
+            outcome => stream::handle(outcome, &stmt.redirects, interactive),
         }
     }
 }
@@ -38,6 +42,7 @@ fn read_line(
     keys: &mut Keys<io::Stdin>,
     stdout: &mut dyn Write,
     interactive: bool,
+    shell: &mut Shell,
 ) -> Option<String> {
     write!(stdout, "$ ").unwrap();
     stdout.flush().unwrap();
@@ -54,7 +59,7 @@ fn read_line(
                 return Some(line);
             }
             Key::Char('\t') => {
-                pending_tab = tab_complete(pending_tab, stdout, &mut line, interactive);
+                pending_tab = tab_complete(pending_tab, stdout, &mut line, interactive, shell);
                 stdout.flush().unwrap();
             }
             Key::Char(c) => {
@@ -101,6 +106,7 @@ fn tab_complete(
     stdout: &mut dyn Write,
     line: &mut String,
     interactive: bool,
+    shell: &mut Shell,
 ) -> Option<Vec<String>> {
     if let Some(list) = &pending_tab {
         new_line(stdout, interactive);
@@ -115,7 +121,7 @@ fn tab_complete(
         let parsed = parse(line);
         if !line.is_empty() && parsed.len() == 1 && line.ends_with(' ') {
             // candidate for the thing!!!
-            if let Some(complete) = stored_complete(&parsed[0]) {
+            if let Some(complete) = stored_complete(shell, &parsed[0]) {
                 line.push_str(&complete);
                 line.push(' ');
                 write!(stdout, "\r$ {line}{}", termion::clear::UntilNewline).unwrap();

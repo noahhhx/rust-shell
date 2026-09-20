@@ -1,8 +1,9 @@
-use std::{env, fs, io};
+use crate::commands::builtins::{BUILTINS, is_executable};
+use crate::commands::command::find_in_path_starts_with;
+use crate::shell::Shell;
 use std::path::Path;
 use std::process::Command;
-use crate::commands::command::{find_in_path_starts_with, BUILT_IN_COMMANDS, is_executable};
-use crate::commands::complete::get_completion;
+use std::{env, fs, io};
 
 #[must_use]
 pub fn complete(word: &str, command_position: bool) -> Vec<String> {
@@ -16,31 +17,24 @@ pub fn complete(word: &str, command_position: bool) -> Vec<String> {
 }
 
 #[must_use]
-pub fn stored_complete(word: &str) -> Option<String> {
-    let completion_script = get_completion(word);
-    if completion_script.is_empty() {
-        None
-    } else {
-        Some(run_complete_script(&completion_script))
-    }
+pub fn stored_complete(shell: &mut Shell, word: &str) -> Option<String> {
+    shell.completion_script(word).map(run_complete_script)
 }
 
 fn run_complete_script(cmd: &str) -> String {
     let path = Path::new(cmd);
     if path.is_file() && is_executable(path) {
-        let output = Command::new(path)
-            .output()
-            .expect("uh fucking oh");
+        let output = Command::new(path).output().expect("uh fucking oh");
         return String::from_utf8_lossy(output.stdout.trim_ascii_end()).to_string();
     }
     String::new()
 }
 
 fn exe_candidates(prefix: &str) -> Vec<String> {
-    let mut candidates: Vec<String> = BUILT_IN_COMMANDS
+    let mut candidates: Vec<String> = BUILTINS
         .iter()
-        .filter(|c| c.starts_with(prefix))
-        .map(ToString::to_string)
+        .filter(|c| c.name.starts_with(prefix))
+        .map(|t| t.name.to_string())
         .collect();
 
     for entry in find_in_path_starts_with(prefix) {
@@ -96,9 +90,11 @@ fn list_dirs_in_dir(path: &Path) -> io::Result<Vec<String>> {
             let entry = entry?;
             let path = entry.path();
             if path.is_dir() {
-                dirs.push(path.file_name()
-                    .map(|name| name.to_string_lossy().into_owned())
-                    .unwrap_or_default());
+                dirs.push(
+                    path.file_name()
+                        .map(|name| name.to_string_lossy().into_owned())
+                        .unwrap_or_default(),
+                );
             }
         }
     }
@@ -112,9 +108,11 @@ fn list_files_in_dir(path: &Path) -> io::Result<Vec<String>> {
             let entry = entry?;
             let path = entry.path();
             if path.is_file() {
-                files.push(path.file_name()
-                    .map(|name| name.to_string_lossy().into_owned())
-                    .unwrap_or_default());
+                files.push(
+                    path.file_name()
+                        .map(|name| name.to_string_lossy().into_owned())
+                        .unwrap_or_default(),
+                );
             }
         }
     }
@@ -131,7 +129,7 @@ pub fn common_prefix(candidates: &[String]) -> String {
         prefix = prefix
             .into_iter()
             .zip(cand.chars())
-            .take_while(|(a, b)| a==b)
+            .take_while(|(a, b)| a == b)
             .map(|(a, _)| a)
             .collect();
         if prefix.is_empty() {
