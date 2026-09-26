@@ -63,7 +63,10 @@ pub fn complete(shell: &Shell, line: &str) -> CompletionAction {
     if ctx.command_position {
         reduce(ctx.word_start, ctx.word, &mut exe_candidates(ctx.word))
     } else if let Some(script) = shell.completion_script(&ctx.command) {
-        let mut word_len = ctx.word.to_owned().len();
+        let word = ctx.word.to_owned();
+        let word_start = ctx.word_start;
+        let mut word_len = word.len();
+
         if word_len == line.len() {
             word_len = 0;
         }
@@ -73,9 +76,9 @@ pub fn complete(shell: &Shell, line: &str) -> CompletionAction {
             return CompletionAction::None;
         }
 
-        let candidaties: Vec<String> = script_out.lines().map(ToString::to_string).collect();
+        let mut candidaties: Vec<String> = script_out.lines().map(ToString::to_string).collect();
         if candidaties.len() > 1 {
-            return CompletionAction::Show(candidaties);
+            return reduce(word_start, &word, &mut candidaties);
         }
 
         CompletionAction::Replace {
