@@ -101,6 +101,7 @@ fn complete_cmd(shell: &mut Shell, args: &[String]) -> Outcome {
     match flag.as_str() {
         "-p" => print_completion(shell, &args),
         "-C" => register_completion(shell, &args),
+        "-r" => remove_completion(shell, &args),
         _ => Outcome::Ok,
     }
 }
@@ -183,5 +184,16 @@ fn register_completion(shell: &mut Shell, args: &[String]) -> Outcome {
         };
     };
     shell.completions.insert(second.clone(), first.clone());
+    Outcome::Ok
+}
+
+fn remove_completion(shell: &mut Shell, args: &[String]) -> Outcome {
+    let [first, ..] = args else {
+        return Outcome::Output {
+            stdout: String::new(),
+            stderr: String::from("Too many args"),
+        };
+    };
+    shell.completions.remove(first);
     Outcome::Ok
 }
