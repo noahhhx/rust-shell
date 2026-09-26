@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::process::Command;
 
 use crate::commands::builtins::find_in_path;
@@ -10,6 +11,7 @@ use crate::shell::Shell;
 
 pub mod builtins;
 pub mod command;
+pub mod jobs;
 pub mod outcome;
 pub mod parser;
 pub mod stream;
@@ -26,6 +28,19 @@ pub fn execute(shell: &mut Shell, stmt: &Statement) -> Outcome {
 fn external(stmt: &Statement) -> Outcome {
     let Some(exe) = find_in_path(&stmt.program) else {
         return Outcome::from_err(format!("{}: command not found", stmt.program));
+    };
+
+    let last_arg = stmt.args.last().unwrap_or(&String::from("")).to_owned();
+    if last_arg == "&" {
+        let pid = Command::new(exe.file_name().unwrap())
+            .args(&stmt.args[0..stmt.args.len() - 1])
+            .spawn()
+            .expect("failed to execute process")
+            .id();
+        return Outcome::Output {
+            stdout: String::from(format!("[1] {}", pid)),
+            stderr: String::from(""),
+        };
     };
 
     let output = Command::new(exe.file_name().unwrap())

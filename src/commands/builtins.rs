@@ -36,6 +36,10 @@ pub const BUILTINS: &[Builtin] = &[
         run: complete_cmd,
     },
     Builtin {
+        name: "jobs",
+        run: jobs,
+    },
+    Builtin {
         name: "exit",
         run: exit_cmd,
     },
@@ -195,5 +199,9 @@ fn remove_completion(shell: &mut Shell, args: &[String]) -> Outcome {
         };
     };
     shell.completions.remove(first);
+    Outcome::Ok
+}
+
+fn jobs(shell: &mut Shell, args: &[String]) -> Outcome {
     Outcome::Ok
 }
