@@ -22,7 +22,6 @@ struct CompletionCtx<'a> {
     word_start: usize,
     command_position: bool,
     command: String,
-    first_arg_of: Option<String>,
     previous_word: Option<String>,
 }
 
@@ -49,17 +48,11 @@ fn context(line: &str) -> CompletionCtx<'_> {
     } else {
         parsed.clone().first().unwrap_or(&String::new()).clone()
     };
-    let first_arg_of = if !line.is_empty() && parsed.len() == 1 && line.ends_with(' ') {
-        parsed.into_iter().next()
-    } else {
-        None
-    };
     CompletionCtx {
         word,
         word_start,
         command_position,
         command,
-        first_arg_of,
         previous_word,
     }
 }
@@ -69,20 +62,25 @@ pub fn complete(shell: &Shell, line: &str) -> CompletionAction {
     let ctx = context(line);
     if ctx.command_position {
         reduce(ctx.word_start, ctx.word, &mut exe_candidates(ctx.word))
-    } else if let Some(program) = &ctx.first_arg_of
-        && let Some(script) = shell.completion_script(program)
-    {
-        CompletionAction::Replace {
-            start: line.len(),
-            text: run_script(script, ctx),
-            space: true,
+    } else if let Some(script) = shell.completion_script(&ctx.command) {
+        let mut word_len = ctx.word.to_owned().len();
+        if word_len == line.len() {
+            word_len = 0;
         }
-    } else if let Some(_previous_word) = &ctx.previous_word
-        && let Some(script) = shell.completion_script(&ctx.command)
-    {
+
+        let script_out = run_script(script, ctx, line.to_owned(), line.len().to_string());
+        if script_out.is_empty() {
+            return CompletionAction::None;
+        }
+
+        let candidaties: Vec<String> = script_out.lines().map(ToString::to_string).collect();
+        if candidaties.len() > 1 {
+            return CompletionAction::Show(candidaties);
+        }
+
         CompletionAction::Replace {
-            start: line.len() - ctx.word.len(),
-            text: run_script(script, ctx),
+            start: line.len() - word_len,
+            text: script_out,
             space: true,
         }
     } else {
@@ -114,16 +112,24 @@ fn reduce(word_start: usize, word: &str, candidates: &mut [String]) -> Completio
     }
 }
 
-fn run_script(cmd: &str, ctx: CompletionCtx) -> String {
+fn run_script(cmd: &str, ctx: CompletionCtx, comp_line: String, comp_point: String) -> String {
     let path = Path::new(cmd);
-    let first_arg = ctx.command;
+    let first_arg = ctx.command.clone();
     let word = ctx.word.to_string();
-    let previosu_word = ctx.previous_word.unwrap_or_default();
-    let args = vec![first_arg, word, previosu_word.clone()];
+
+    let arg_3 = if let Some(previous_word) = ctx.previous_word {
+        previous_word
+    } else {
+        ctx.command.clone()
+    };
+
+    let args = vec![first_arg, word, arg_3];
 
     if path.is_file() && is_executable(path) {
         let output = Command::new(path)
             .args(args)
+            .env("COMP_LINE", comp_line)
+            .env("COMP_POINT", comp_point)
             .output()
             .expect("uh fucking oh");
         return String::from_utf8_lossy(output.stdout.trim_ascii_end()).to_string();
@@ -241,20 +247,8 @@ fn common_prefix(candidates: &[String]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::{completion::complete, shell::Shell};
 
     use super::common_prefix;
-
-    #[test]
-    fn test_test() {
-        let mut shell = Shell::default();
-        let line = "git remote set";
-        shell
-            .completions
-            .insert("git".to_string(), "test".to_string());
-
-        complete(&shell, line);
-    }
 
     #[test]
     fn lcp_of_nested_prefixes() {
