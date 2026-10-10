@@ -3,6 +3,7 @@ use std::{
     fs,
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
+    process::Output,
 };
 
 use crate::{commands::outcome::Outcome, shell::Shell};
@@ -202,6 +203,22 @@ fn remove_completion(shell: &mut Shell, args: &[String]) -> Outcome {
     Outcome::Ok
 }
 
-fn jobs(_shell: &mut Shell, _args: &[String]) -> Outcome {
-    Outcome::Ok
+fn jobs(shell: &mut Shell, _args: &[String]) -> Outcome {
+    let jobs = shell.jobs.get_jobs();
+    let out = if jobs.len() == 1 {
+        let job = jobs.first().unwrap();
+        format!(
+            "[1]+  {:?}{:space$}{}",
+            job.status,
+            " ",
+            job.cmd_string,
+            space = (24 - 7) // Running = 7
+        )
+    } else {
+        String::new()
+    };
+    Outcome::Output {
+        stdout: out,
+        stderr: String::new(),
+    }
 }

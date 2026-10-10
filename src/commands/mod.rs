@@ -1,7 +1,6 @@
 use std::process::Command;
 
 use crate::commands::builtins::find_in_path;
-use crate::commands::jobs::run_job;
 use crate::commands::{
     builtins::BUILTINS,
     command::Statement,
@@ -19,20 +18,20 @@ pub mod stream;
 pub fn execute(shell: &mut Shell, stmt: &Statement) -> Outcome {
     let outcome = match BUILTINS.iter().find(|b| b.name == stmt.program) {
         Some(b) => (b.run)(shell, &stmt.args),
-        None => external(stmt),
+        None => external(stmt, shell),
     };
     shell.last_status = outcome.status();
     outcome
 }
 
-fn external(stmt: &Statement) -> Outcome {
+fn external(stmt: &Statement, shell: &mut Shell) -> Outcome {
     let Some(exe) = find_in_path(&stmt.program) else {
         return Outcome::from_err(format!("{}: command not found", stmt.program));
     };
 
     let last_arg = stmt.args.last().unwrap_or(&String::new()).to_owned();
     if last_arg == "&" {
-        return run_job(exe.file_name().unwrap(), stmt);
+        return shell.jobs.run_job(exe.file_name().unwrap(), stmt);
     }
 
     let output = Command::new(exe.file_name().unwrap())

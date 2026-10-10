@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 
+use crate::commands::jobs::Jobs;
+
 pub struct Shell {
     pub completions: HashMap<String, String>,
     pub last_status: i32,
+    pub jobs: Jobs,
 }
 
 impl Shell {
@@ -11,6 +14,7 @@ impl Shell {
         Self {
             completions: HashMap::new(),
             last_status: 0,
+            jobs: Jobs::default(),
         }
     }
 
