@@ -144,6 +144,39 @@ fi
 
 printf 'Running %d of %d stages\n\n' "$selected" "$total"
 
+# The pwd stage (ei0) does `mv $(which pwd) $(which pwd)Backup` to prove the
+# shell prints the cwd itself instead of exec'ing the external pwd, then renames
+# it back. Two things break that on a NixOS devenv, so we prepend a writable
+# shim dir to PATH that papers over both:
+#
+#   1. The coreutils bin dir lives in the read-only /nix/store, so renaming the
+#      real pwd fails. We drop a writable copy of pwd first on PATH; the tester
+#      finds and renames that copy instead. pwd is a shell builtin, so the shim
+#      is invisible to every other stage.
+#   2. If sudo is present the tester runs `sudo mv ...`, which fails with no tty.
+#      The copy is already user-owned and writable, so no privilege is needed; a
+#      sudo shim that just `exec "$@"` strips the unnecessary prefix. No test
+#      stage legitimately invokes sudo.
+SHIM_DIR="$REPO_DIR/target/tester-shims"
+mkdir -p "$SHIM_DIR"
+ext_pwd=""
+IFS=:
+for d in $PATH; do
+    if [ -x "$d/pwd" ] && [ ! -d "$d/pwd" ]; then
+        ext_pwd="$d/pwd"
+        break
+    fi
+done
+unset IFS
+if [ -n "$ext_pwd" ]; then
+    cp -f "$ext_pwd" "$SHIM_DIR/pwd"
+    chmod u+w "$SHIM_DIR/pwd"
+    printf '#!/bin/sh\nexec "$@"\n' > "$SHIM_DIR/sudo"
+    chmod +x "$SHIM_DIR/sudo"
+    PATH="$SHIM_DIR:$PATH"
+    export PATH
+fi
+
 cargo build --release --target-dir=/tmp/codecrafters-build-shell-rust --manifest-path "$REPO_DIR/Cargo.toml" >/dev/null
 
 cd "$REPO_DIR"

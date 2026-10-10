@@ -202,6 +202,6 @@ fn remove_completion(shell: &mut Shell, args: &[String]) -> Outcome {
     Outcome::Ok
 }
 
-fn jobs(shell: &mut Shell, args: &[String]) -> Outcome {
+fn jobs(_shell: &mut Shell, _args: &[String]) -> Outcome {
     Outcome::Ok
 }

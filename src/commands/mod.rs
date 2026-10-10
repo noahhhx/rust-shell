@@ -1,7 +1,7 @@
-use std::any::Any;
 use std::process::Command;
 
 use crate::commands::builtins::find_in_path;
+use crate::commands::jobs::run_job;
 use crate::commands::{
     builtins::BUILTINS,
     command::Statement,
@@ -30,18 +30,10 @@ fn external(stmt: &Statement) -> Outcome {
         return Outcome::from_err(format!("{}: command not found", stmt.program));
     };
 
-    let last_arg = stmt.args.last().unwrap_or(&String::from("")).to_owned();
+    let last_arg = stmt.args.last().unwrap_or(&String::new()).to_owned();
     if last_arg == "&" {
-        let pid = Command::new(exe.file_name().unwrap())
-            .args(&stmt.args[0..stmt.args.len() - 1])
-            .spawn()
-            .expect("failed to execute process")
-            .id();
-        return Outcome::Output {
-            stdout: String::from(format!("[1] {}", pid)),
-            stderr: String::from(""),
-        };
-    };
+        return run_job(exe.file_name().unwrap(), stmt);
+    }
 
     let output = Command::new(exe.file_name().unwrap())
         .args(&stmt.args)
