@@ -13,7 +13,7 @@ pub enum JobStatus {
 }
 
 pub struct Job {
-    pub job_number: u16,
+    pub number: u16,
     pub proc_id: u32,
     pub cmd_string: String,
     pub status: JobStatus,
@@ -29,14 +29,15 @@ impl Jobs {
         &self.jobs
     }
 
-    pub fn add_job(&mut self, proc_id: u32, cmd: &str) {
+    pub fn add_job(&mut self, proc_id: u32, cmd: &str) -> u16 {
         let job_number = self.jobs.len() + 1;
         self.jobs.push(Job {
-            job_number: job_number as u16,
+            number: u16::try_from(job_number).unwrap(),
             proc_id,
             cmd_string: cmd.to_string(),
             status: JobStatus::Running,
         });
+        u16::try_from(job_number).unwrap()
     }
 
     pub fn run_job(&mut self, cmd: &OsStr, stmt: &Statement) -> Outcome {
@@ -50,7 +51,7 @@ impl Jobs {
         let mut test = stmt.program.clone() + " ";
         test.push_str(&stmt.args.join(" "));
 
-        self.add_job(child.id(), &test.to_string());
+        let job_id = self.add_job(child.id(), &test.clone());
 
         let mut stdout = child.stdout.take().unwrap();
         thread::spawn(move || {
@@ -67,7 +68,7 @@ impl Jobs {
         });
 
         Outcome::Output {
-            stdout: format!("[1] {}", child.id()),
+            stdout: format!("[{job_id}] {}", child.id()),
             stderr: String::new(),
         }
     }
