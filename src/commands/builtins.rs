@@ -204,6 +204,9 @@ fn remove_completion(shell: &mut Shell, args: &[String]) -> Outcome {
 
 fn jobs(shell: &mut Shell, _args: &[String]) -> Outcome {
     let mut out = String::new();
+
+    out.push_str(&shell.jobs.reap_jobs());
+
     let jobs = shell.jobs.get_jobs();
     let jobs_len = jobs.len();
 
