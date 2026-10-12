@@ -5,7 +5,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{commands::outcome::Outcome, shell::Shell};
+use crate::{
+    commands::{jobs::JobStatus, outcome::Outcome},
+    shell::Shell,
+};
 
 type BuiltinFn = fn(&mut Shell, &[String]) -> Outcome;
 
@@ -203,38 +206,5 @@ fn remove_completion(shell: &mut Shell, args: &[String]) -> Outcome {
 }
 
 fn jobs(shell: &mut Shell, _args: &[String]) -> Outcome {
-    let mut out = String::new();
-
-    out.push_str(&shell.jobs.reap_jobs());
-
-    let jobs = shell.jobs.get_jobs();
-    let jobs_len = jobs.len();
-
-    for i in 0..jobs_len {
-        let job = jobs.get(i).unwrap();
-        let symbol = if i == jobs_len - 1 {
-            "+"
-        } else if i == jobs.len() - 2 {
-            "-"
-        } else {
-            ""
-        };
-        let string = format!(
-            "[{}]{}  {:?}{:space$}{}",
-            job.number,
-            symbol,
-            job.status,
-            " ",
-            job.cmd_string,
-            space = (24 - 7) // Running = 7
-        );
-        out.push_str(&string.clone());
-        if i != jobs.len() - 1 {
-            out.push_str("\r\n");
-        }
-    }
-    Outcome::Output {
-        stdout: out,
-        stderr: String::new(),
-    }
+    shell.jobs.handle()
 }
